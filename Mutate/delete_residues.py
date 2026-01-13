@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 import sys
 
+# This file changes the residues of the dna structure (pdb file) by renaming residues to the new wanted residue name and deleting all atoms exept the ones similar in all residue (reference atoms)  so that tleap can reconstruct the residue 
+
 pdb_file = 'output.pdb'
-atoms_to_keep = {  #                     backbone atoms beginning                       reference atoms                                                                     referece                backbone end
+atoms_to_keep = {  #                     backbone beginning                             reference atoms               backbone end
     'A': ["P","OP1","OP2","O5'","C5'","H5'","H5''","C4'","H4'","O4'","C1'","H1'",      "N9","C8","H8",   "C4",       "C3'","H3'","C2'","H2'","H2''","O3'"],
     'T': ["P","OP1","OP2","O5'","C5'","H5'","H5''","C4'","H4'","O4'","C1'","H1'",      "N1","C6","H6",   "C2",       "C3'","H3'","C2'","H2'","H2''","O3'"],
     'C': ["P","OP1","OP2","O5'","C5'","H5'","H5''","C4'","H4'","O4'","C1'","H1'",      "N1","C6","H6",   "C2",       "C3'","H3'","C2'","H2'","H2''","O3'"],
@@ -15,7 +17,7 @@ atoms_to_keep = {  #                     backbone atoms beginning               
 # """ "C5","H5","N4","H41","H42","N3","C2","O2",                 """ 
 
 
-change_names = {  #   hold list of atoms to change atoms from (oldname, newname),... when changing from change_names[old_residue][new_residue] 
+change_names = {  #   holds lists of atom names to change from (oldname, newname),... when changing from change_names[old_residue][new_residue] 
     'A': { 'A' : [],                                                     'T' : [('N9','N1'),('C8','C6'),('H8','H6'),('C4','C2')],  'C' : [('N9','N1'),('C8','C6'),('H8','H6'),('C4','C2')], 'G' : []},
 
 
@@ -31,22 +33,22 @@ change_names = {  #   hold list of atoms to change atoms from (oldname, newname)
     'G': { 'A' : [],                                                     'T' : [('N9','N1'),('C8','C6'),('H8','H6'),('C4','C2')],  'C' : [('N9','N1'),('C8','C6'),('H8','H6'),('C4','C2')], 'G' : []}
 }
 
-def change_residue(res_index,new_name):
+def change_residue(res_to_change,new_name):
 
     out = []
     for line in open(pdb_file):
         
-        if not line.startswith(("ATOM", "TER")):
+        if not line.startswith(("ATOM", "TER")): # keep all headers and meta information of pdb
             out.append(line)
             continue
         resid = int(line[22:26])
         resname = str(line[17:20]).strip()
         atom_name = str(line[12:16]).strip()
 
-        if resid == res_index and len(resname) != 3:
+        if resid == res_to_change and len(resname) != 3:  # if resname has len 3 it means it is a starting / ending residue, which wont be changed
             line = line[:17] + f"{'D'+new_name:>3}" + line[20:]
             
-            change_list = [i[0] for i in change_names[resname[1]][new_name]]
+            change_list = [i[0] for i in change_names[resname[1]][new_name]]   # changeing the reference atoms to fit to the new res name
             change_index = change_list.index(atom_name) if atom_name in change_list else -1
             if change_index >= 0:
                 line = line[:12] + f"{change_names[resname[1]][new_name][change_index][1]:^4}" + line[16:]
@@ -61,11 +63,11 @@ def change_residue(res_index,new_name):
     open("output.pdb", "w").writelines(out)
 
 if __name__ == "__main__":
-    with open('Mutate/mutation_information.txt', 'r') as f:
+    with open('Mutate/mutation_information.txt', 'r') as f:     # contains only lines with '<resindex> <newResName>'
         for line in f.readlines():
             res_to_change = int(line.split()[0])
             res_new_name = line.split()[1]
-            print("replacing residue " + str(res_to_change) + " with " + res_new_name )
+           # print("replacing residue " + str(res_to_change) + " with " + res_new_name )
             change_residue(res_to_change, res_new_name[1])
 
 

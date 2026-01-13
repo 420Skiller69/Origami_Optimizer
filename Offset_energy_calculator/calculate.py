@@ -4,7 +4,7 @@ import os, os.path
 import random
 import copy
 
-def print_helix_data(helix):
+def print_helix_text_reprensentation(helix):
     
     for b in helix['strand_sequences'][0]:
         print(b, end = " ")
@@ -17,42 +17,16 @@ def print_helix_data(helix):
     print()
     print()
 
-    # print("base pair parameters:")
-    # print("shear \tstretch stagger buckle propeller opening")
 
-    # for bp_params in helix['bp_params']:
-    #     for param in bp_params:
-    #         print(param, end='\t')
-    #     print()
-    
-    # print()
-
-    # print("step paramenters:")
-    # print("shift \t slide \trise \ttilt \troll \ttwist")
-    # for step_params in helix['step_params']:
-    #     for param in step_params:
-    #         print(param, end='\t')
-    #     print()
-    # print()
-
-    # print("helical parameters:")
-    # print("x_disp	y_disp	hrise	incl	tip	htwist")
-    # for heli_params in helix['heli_params']:
-    #     for param in heli_params:
-    #         print(param, end='\t')
-    #     print()
-    # print()
-
-
-def extract_data(filename):
+def extract_data(filename): # read out the averaged helical parameters for one helix
 
     with open(filename) as f:
         
-        bp_params = []
-        step_params = []
-        heli_params = []
+        bp_params = []  # [ [shear,stretch,stagger,buckle,prop,open] , same for basepair 2 , ...]
+        step_params = [] # [ [shift,slide,rise,tilt,roll,twist] , same for step 2 , ...]  ( bp1 step1 bp2 step2 ... ) 
+        heli_params = [] # [ [x_disp,y_disp,hrise,incl,tip,htwist] , step 2 , ...]
         strands = []
-        
+
         meta_data = f.readline().split()
         strands.append(meta_data[1])
         strands.append(meta_data[2])
@@ -88,7 +62,7 @@ def safe_float(x):
     except ValueError:
         return x 
 
-def load_equalibrium_params():
+def load_equalibrium_params(): # load the equalibrium parameters from the paper "Sequence-Dependent Shape and Stiffness of DNA and RNA Double Helices"
     with open(root+'hexamers_csv/DNA/coords_grooves_DNA_hexamers_table.csv') as f:
         data = csv.reader(f)
         equalibrium_step_params = { row[0] : [safe_float(i) for i in row[1:7]] for row in data }
@@ -105,7 +79,7 @@ def load_equalibrium_params():
     }
     return equalibrium_params
 
-def load_stiffs():
+def load_stiffs():  # load the quadratic offset energy stiffness
     with open(root+'hexamers_csv/DNA/coords_stiffs_DNA_hexamers_table.csv') as f:
         data = csv.reader(f)
         step_stiffs = { row[0] : [safe_float(i) for i in row[1:7]] for row in data }
@@ -122,7 +96,7 @@ def load_stiffs():
     }
     return stiffs
 
-def get_all_possible_sequences(sequence):
+def get_all_possible_sequences(sequence):   # given any sequence of any length and '-' as placeholder, return all possible sequences by replacing '-' with A,T,C or G
     sequence = "".join(sequence)
     placeholder_inds = [ index for index, val in enumerate(sequence) if val == '-']
     possible_sequences = [sequence]
@@ -136,12 +110,10 @@ def get_all_possible_sequences(sequence):
         possible_sequences = next_possible_sequences.copy() 
     return possible_sequences
 
-def get_equalibrium_params(param_type, sequence):
-    
+def get_equalibrium_params(param_type, sequence):   # for sequences with placeholders '-', return average equalibrium parameters ( nessasary since equalibrium parameters are always defined for hexamers or heptamers)
     possible_sequences = get_all_possible_sequences(sequence)
-
-    #calculate average paramenters for all possible sequences
     avg_params = [0]*6
+
     for seq in possible_sequences:
         for i in range(6):
             avg_params[i] += equalibrium_params[param_type][seq][i]
@@ -151,11 +123,10 @@ def get_equalibrium_params(param_type, sequence):
 
     return avg_params
 
-def get_stiffs(param_type, sequence):
+def get_stiffs(param_type, sequence):   # for sequences with placeholders '-', return average stiffness parameters ( nessasary since stiffness parameters are always defined for hexamers or heptamers) 
     possible_sequences = get_all_possible_sequences(sequence)
-
-        #calculate average paramenters for all possible sequences
     avg_params = [0]*6
+
     for seq in possible_sequences:
         for i in range(6):
             avg_params[i] += stiffs[param_type][seq][i]
@@ -165,7 +136,7 @@ def get_stiffs(param_type, sequence):
 
     return avg_params
   
-def compare_steps_to_eql(helix):
+def compare_steps_to_eql(helix):  # calculate the offset energy for all step parameters compared to equalibrium
     differences = [[0,0,0,0,0,0]] * len(helix['step_params'])
 
     seq = helix['strand_sequences'][0]
@@ -180,7 +151,7 @@ def compare_steps_to_eql(helix):
         differences[step_n] = diffs_of_step
     return(differences)
 
-def compare_heli_to_eql(helix):
+def compare_heli_to_eql(helix):  # calculate the offset energy for all helical parameters compared to equalibrium
     differences = [[0,0,0,0,0,0]] * len(helix['heli_params'])
 
     seq = helix['strand_sequences'][0]
@@ -195,7 +166,7 @@ def compare_heli_to_eql(helix):
         differences[step_n] = diffs_of_step
     return(differences)
 
-def compare_bp_to_eql(helix):
+def compare_bp_to_eql(helix):   # calculate the offset energy for all base pair parameters compared to equalibrium
     differences = [[0,0,0,0,0,0]] * len(helix['bp_params'])
 
     seq = helix['strand_sequences'][0]
@@ -210,7 +181,7 @@ def compare_bp_to_eql(helix):
         differences[bp_n] = diffs_of_bp
     return(differences)
 
-def calculate_displacement_energy(helix):
+def calculate_displacement_energy(helix):  
     coordinate_displacements = {
         'bp'   : compare_bp_to_eql(helix),
         'step' : compare_steps_to_eql(helix), 
@@ -218,7 +189,7 @@ def calculate_displacement_energy(helix):
     }
     return coordinate_displacements
 
-def calculate_displacement_energy2(helix, sequence):
+def calculate_displacement_energy2(helix, sequence):   # assuming the helix had another sequence, then calculate the displacement energy
     complements = {
         'A' : 'T', 'T' : 'A', 'C' : 'G', 'G' : 'C'
     }
@@ -232,22 +203,21 @@ def calculate_displacement_energy2(helix, sequence):
     }
     return coordinate_displacements
 
+def write_tcl_representation_script(helices):   # the display_energys.tcl file can be loadid with vmd to visualize the energy of the helix deformations
 
-def write_tcl_representation_script(helices):
-
+    COLORING_FACTOR = 10
     with open('display_energys.tcl', 'w') as f:
-        #f.write('cd .. \n')
-        #f.write('cd Helix_separator \n')
+
         f.write('mol new output.pdb \n')
         f.write('set molid [lindex [expr {[molinfo list]}] end] \n\n\n')
         
         for helix in helices:
 
-            energy_sums = [np.sqrt(sum(i)) for i in helix['energys']['bp']]
-            color_param_bp = [i/max(energy_sums) for i in energy_sums]
+            energy_sums = [sum(i) for i in helix['energys']['bp']]
+            color_param_bp = [i/COLORING_FACTOR for i in energy_sums]
 
-            energy_sums = [np.sqrt(sum(helix['energys']['step'][i]) + sum(helix['energys']['heli'][i])) for i in range(len(helix['energys']['step']))]
-            color_param_step = [i/max(energy_sums) for i in energy_sums]
+            energy_sums = [sum(helix['energys']['step'][i] + sum(helix['energys']['heli'][i])) for i in range(len(helix['energys']['step']))]
+            color_param_step = [i/COLORING_FACTOR for i in energy_sums]
 
             selection_string = '"backbone and not name OP1 OP2"'
             f.write('mol addrep $molid \n')
@@ -294,34 +264,34 @@ def write_tcl_representation_script(helices):
 
             f.write(' \n')
 
-
-def find_energy_minimum_sequence(helices):
+def find_energy_minimum_sequence(helices):  # for each helix and assuming the same average helix parameters as with old sequence find the sequence with minimal offset energy and write new seuence to mutation information
     complements = {
         'A' : 'T', 'T' : 'A', 'C' : 'G', 'G' : 'C'
     }
     with open('Mutate/mutation_information.txt', 'w') as f:
         for helix in helices:
-            possible_bps = [['A','T'],['T','A'],['C','G'],['G','C']]
+            possible_new_sequences = get_all_possible_sequences('-' * len(helix['strand_sequences'][0]))
+            offset_energys_for_all_possible_sequences = []
+            
+            for seq in possible_new_sequences:   # make sure that sequences have certain ATGC content
+                A_n, T_n, C_n, G_n = seq.count('A'), seq.count('T'), seq.count('C'), seq.count('G')
+                if(A_n == 0 or T_n == 0 or C_n == 0 or G_n == 0):
+                    possible_new_sequences.remove(seq)                
 
-            energy_sums_with_mutation = []
-
-            placeholder_seq = '-' * len(helix['strand_sequences'][0])
-            possible_mutated_sequences = get_all_possible_sequences(placeholder_seq)
-            for seq in possible_mutated_sequences:
+            for seq in possible_new_sequences:
                 offset_mutation = calculate_displacement_energy2(helix, seq)
                 energy_sums_bp = [sum(i) for i in offset_mutation['bp']]
                 energy_sums_step = [(sum(offset_mutation['step'][i]) + sum(offset_mutation['heli'][i])) for i in range(len(offset_mutation['step']))]
-                energy_sums_with_mutation.append(energy_sums_bp[0] + energy_sums_step[0])
+                offset_energys_for_all_possible_sequences.append(energy_sums_bp[0] + energy_sums_step[0])
 
-
-            new_seq = possible_mutated_sequences[energy_sums_with_mutation.index(min(energy_sums_with_mutation))] # [energy_sums_with_mutation.index(min(energy_sums_with_mutation))]
-            old_Energy = energy_sums_with_mutation[possible_mutated_sequences.index(helix['strand_sequences'][0])]
-            new_Energy = energy_sums_with_mutation[possible_mutated_sequences.index(new_seq)]
+            new_seq = possible_new_sequences[offset_energys_for_all_possible_sequences.index(min(offset_energys_for_all_possible_sequencese))] # [offset_energys_for_all_possible_sequences.index(min(offset_energys_for_all_possible_sequencese))]
+            old_Energy = offset_energys_for_all_possible_sequences[possible_new_sequences.index(helix['strand_sequences'][0])]
+            new_Energy = offset_energys_for_all_possible_sequences[possible_new_sequences.index(new_seq)]
             
-            for i, newRes in enumerate(new_seq):
+            for i, newRes in enumerate(new_seq):    # print to mutation information file in format <residue index> <new resname>
                 if(newRes != helix['strand_sequences'][0][i]):
-                    f.write(str(helix['strand_res_inds'][0][i]) + " D" + newRes + '\n')
-                    f.write(str(helix['strand_res_inds'][1][i]) + " D" + complements[newRes] + '\n')
+                    f.write(str(helix['strand_res_inds'][0][i]+1) + " D" + newRes + '\n')
+                    f.write(str(helix['strand_res_inds'][1][i]+1) + " D" + complements[newRes] + '\n')
             print(helix['strand_sequences'][0] + ' E='+str(old_Energy)+ " < old  |  new > "+ new_seq + ' E='+str(new_Energy)) 
 
 def get_helix_snippet(helix, start_bp, end_bp):
@@ -353,12 +323,12 @@ def calculate_total_energy(helices):
 
 
 root = './Offset_energy_calculator/'
-# root = './'
+
 if __name__ == "__main__":
     equalibrium_params = load_equalibrium_params()
     stiffs = load_stiffs()
     
-    
+    # load in helices which were previously found by find_bound_double_strands.py
     helices = []
     for i in range(len([name for name in os.listdir(root+'MD_Results')])):
         helix = extract_data(root+'MD_Results/MD_averaged_parameters_of_helix_'+str(i)+'.dat')
@@ -367,6 +337,8 @@ if __name__ == "__main__":
 
     print("total Energy of Structure: " + str(calculate_total_energy(helices)))
 
+
+    # sort out hexamers that are next to a transition of a strand to another helix
     hexamers_next_to_transition = []
     hexamer_len = 6
 
@@ -378,17 +350,10 @@ if __name__ == "__main__":
             ending_hexamer = get_helix_snippet(helix, -hexamer_len, None)
             hexamers_next_to_transition.append(ending_hexamer)
 
-    energys = []
     for helix in hexamers_next_to_transition:
         helix['energys'] = calculate_displacement_energy(helix)
-        print_helix_data(helix)
-
-# only for testing, outputs the residue indices so that you can paste it in vmd selection
-    # for helix in hexamers_next_to_transition:
-    #     print_res_ind_of_Helix(helix)
 
     find_energy_minimum_sequence(hexamers_next_to_transition)
-    # write_mutation_information(helices)
     
     write_tcl_representation_script(helices)
 

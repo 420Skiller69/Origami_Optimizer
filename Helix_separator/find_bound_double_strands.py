@@ -5,11 +5,9 @@ TOLERANCE_DISTANCE = 8
 TOLERATED_UNMATCHES = 1
 ALLOW_ONE_STRAND_HELIX = False
 
+# trys to find all double strand helices in a pdb file and write their base pairing in a file 
 
-
-def parse_helix_pdb(file):
-    #    Parses ATOM/HETATM records from a PDB file named 'helix.pdb'.
-
+def parse_helix_pdb(file):  # parse a pdb file into an array of atoms with their properties
     atoms = []
     
     chain_N = 0
@@ -52,8 +50,7 @@ def parse_helix_pdb(file):
         exit()
     return atoms
 
-def seperate_Atoms(atoms):
-    # sort the atoms into an array of chains that contain residues that contain atoms
+def seperate_Atoms(atoms):  # sort the atoms into an array of chains that contain residues that contain atoms
     chains = [None] * (atoms[-1]['chain_ind']+1)
     for i in range(len(chains)):
         aa = [k for k in atoms if k['chain_ind'] == i]
@@ -68,8 +65,7 @@ def seperate_Atoms(atoms):
 
     return chains
 
-def pick_binding_atoms(chains):
-    # pick for each residue only the atom that binds to a fitting counter residue
+def pick_binding_atoms(chains): # pick for each residue only the atom that binds to a fitting counter residue
 
     dict = {
     'DC5': 'N3',
@@ -97,17 +93,13 @@ def pick_binding_atoms(chains):
     return chains_red
 
 
-def could_be_binded(atom1, atom2):
+def could_be_binded(atom1, atom2):  # checks if two binding site atoms are close enough and of matching bases
     if(atom1 == None or atom2 == None): return False
 
     matching_pairs = {frozenset(("A", "T")), frozenset(("G", "C"))}
     if(not ALLOW_ONE_STRAND_HELIX and atom1['chain_ind'] == atom2['chain_ind'] ):
         return False
     
-    
-    if ( atom1['res_ind'] == 90 or atom2['res_ind'] == 163 ):
-        print("debugging")
-    print(getDistance(atom1, atom2))
     close_enough = getDistance(atom1, atom2) < TOLERANCE_DISTANCE
     bases_match = frozenset( ( atom1['res_name'][1], atom2['res_name'][1] ) ) in matching_pairs
 
@@ -118,7 +110,7 @@ def getDistance(atom1, atom2):
     for i in ['x','y','z']: sum += ((atom1[i]) - (atom2[i]))**2
     return math.sqrt(sum)
 
-def find_closest_resis(chains, atom):
+def find_closest_resis(chains, atom):   # find the three residues with smallest binding atom distance
     
     closest_dist = [float('inf')]   * 3
     closest_atoms =[None]           * 3
@@ -148,15 +140,14 @@ def find_closest_resis(chains, atom):
     return closest_atoms
 
 
-def get_next(chains, atom, step):
+def get_next(chains, atom, step):   # moving on the chain find the next residue with direction of step
     if(atom == None): return None
     if(atom['res_ind'] >= -step and atom['res_ind'] < -step+len(chains[atom['chain_ind']])):
         return chains[atom['chain_ind']][atom['res_ind']+step]
     else:
         return None
 
-def get_last_possible_binding(chains, orig_atom1, orig_atom2):
-    if( orig_atom1 == None or orig_atom2 == None): print("hmmmmmmmmmm")
+def get_last_possible_binding(chains, orig_atom1, orig_atom2):  # assuming the two input residues are bound, checks in all directions on the strands if helix conditions are met  
 
     directons = [[1,1],[-1,-1],[1,-1],[-1,1]]
     last_possible_of_direction = []
@@ -172,8 +163,6 @@ def get_last_possible_binding(chains, orig_atom1, orig_atom2):
             atom1 = get_next(chains, atom1, direc[0])
             atom2 = get_next(chains, atom2, direc[1])
             if(not could_be_binded(atom1, atom2)):
-                if try_len > 2:
-                    print("unmatching bases in helix at length", try_len, ":", atom1['res_name'], atom1['res_ind'], atom2['res_name'], atom2['res_ind'])
                 break
             try_len += 1
     
@@ -194,20 +183,7 @@ def get_last_possible_binding(chains, orig_atom1, orig_atom2):
             }
         return helix
 
-
-
-def get_helix_serials(chains, helix):
-    serials = []
-
-    helix_chains = get_helix_chains(chains, helix)
-    
-    for chain in helix_chains:
-        for atom in chain:
-            serials.append(atom['atom_serial'])
-
-    return serials
-
-def get_helix_chains(chains, helix):
+def get_helix_chains(chains, helix):   # helices are defined just by start/end atoms. this gives back the whole chains in between
     helix_chains = [[], []]
 
     chain1_start = helix['start_atoms'][0]['res_ind']
@@ -251,14 +227,14 @@ def atom_is_in_helix(atom, helix):
     else:
         return False
 
-def match_chains(chains):
+def match_chains(chains):   # goes through all residues and constucts helices 
     helices = []
 
     for chain in chains:
         for res in chain:
             if(not any([atom_is_in_helix(res, helix) for helix in helices])):
                 attempts = []
-                binding_candidates = find_closest_resis(chains, res)
+                binding_candidates = find_closest_resis(chains, res)    # sometimes in a helix the residues are closer so another residue than the residue that mathes the sequence. that why the closest 3 are tried for constructing the helix
                 for candidate in binding_candidates:
                     if(could_be_binded(res, candidate)):
                         attempt = get_last_possible_binding(chains, res, candidate)
@@ -270,78 +246,24 @@ def match_chains(chains):
                         helices.append(attempts[lengths.index(max(lengths))])
     return helices
 
-def create_vmd_selection_of_helices(helices, chains):
-    with open("serial.txt", "a") as f:
-        f.truncate(0)
-        for helix in helices:
-            f.write("serial ")
-            for i in get_helix_serials(chains, helix):
-                f.write(str(i) + " ")
-            f.write("\n")
-
-def write_helices_in_seperate_pdbs(helices, inp_file, chains_raw):
-    ind = 0
-    header_line_N = 0
-    origami.seek(0)
-    for line in inp_file:
-        if(line.startswith('ATOM')):
-            break
-        else:
-            header_line_N += 1
-
-    chain_ID_translate = [chr(i) for i in range(ord('A'),ord('z')+1) if not(i > ord('Z') and i < ord('a'))]
-    for helix in helices: 
-        serial_count = 0
-        helix_chains = get_helix_chains(chains_raw, helix)
-        with open("extracted_helices/helix" +str(ind)+ ".pdb", 'w') as f:
-            f.write('CRYST1    1.000    1.000    1.000  90.00  90.00  90.00 P 1\n')
-            TER_N = 0
-            chain_count = 0
-            for chain in helix_chains:
-                last_atom = None
-                res_count = -1
-                for res in chain:
-                    res_count += 1
-                    for atom in res:
-                        last_atom = atom
-                        line  = 'ATOM'  + ' ' * (7-len(str(serial_count+chain_count)))   + str(serial_count+chain_count)
-                        line +=           ' ' * (5-len(atom['atom_name']))          + atom['atom_name']
-                        line +=           ' ' * (4-len(atom['res_name']))           + atom['res_name']
-                        line +=           ' ' * 1                                   + chain_ID_translate[chain_count]
-                        line +=           ' ' * (4-len(str(res_count)))       + str(res_count)
-                        line +=           ' ' * (12-len(str(atom['x'])))            + str(atom['x'])
-                        line +=           ' ' * ( 8-len(str(atom['y'])))            + str(atom['y'])
-                        line +=           ' ' * ( 8-len(str(atom['z'])))            + str(atom['z'])
-                        line +=           '  0.00' + '  0.00' + 11 * ' ' + atom['element'] + '\n'
-                        if(not (res_count == 0 and atom['atom_name'] in ['P', 'OP1', 'OP2'])):
-                            f.write(line)
-                            serial_count += 1
-                ter_line  = 'TER'   + ' ' * (8-len(str(serial_count+chain_count)))   + str(serial_count+chain_count)         
-                ter_line +=           ' ' * (9-len(last_atom['res_name']))                   + last_atom['res_name'] 
-                ter_line +=           ' ' * 1                                   + chain_ID_translate[chain_count]
-                ter_line +=           ' ' * (4-len(str(res_count)))       + str(res_count)     + '\n'
-                f.write( ter_line )
-                chain_count += 1                
-        ind += 1
-
-one_letter_names = {
-    'DC5': 'C',
-    'DC3': 'C',
-    'DC' : 'C',
-    'DT3': 'T',
-    'DT5': 'T',
-    'DT' : 'T',
-    'DA5': 'A',
-    'DA3': 'A',
-    'DA' : 'A',
-    'DG3': 'G',
-    'DG5': 'G',
-    'DG' : 'G'
-}
 def get_helix_sequences(chains, helix):
     helix_chains = get_helix_chains(chains, helix)
     sequences = [[],[]]
-
+    one_letter_names = {
+        'DC5': 'C',
+        'DC3': 'C',
+        'DC' : 'C',
+        'DT3': 'T',
+        'DT5': 'T',
+        'DT' : 'T',
+        'DA5': 'A',
+        'DA3': 'A',
+        'DA' : 'A',
+        'DG3': 'G',
+        'DG5': 'G',
+        'DG' : 'G'
+    }
+    
     for bp1,bp2 in zip(helix_chains[0],helix_chains[1]):
         sequences[0].append(one_letter_names[bp1['res_name']])
         sequences[1].append(one_letter_names[bp2['res_name']])
@@ -351,20 +273,17 @@ def get_helix_sequences(chains, helix):
 if __name__ == "__main__":
 
     pdb_filename = str("output.pdb")
-    # pdb_filename = str("Helix_separator/cleaned_input.pdb")
     origami = open(pdb_filename, 'r')
+
     chains_raw = seperate_Atoms(parse_helix_pdb(origami))
     chains = pick_binding_atoms(chains_raw)
 
     helices = match_chains(chains)
 
-    with open("Helix_separator/cpptraj_base_pairing.txt", 'w') as f:
+    with open("Helix_separator/cpptraj_base_pairing.txt", 'w') as f: # write base pairing file for cpptraj in the format '<residue id 1>-<residue id 2>,... sequence1 sequence2
         for helix in helices:
             helix_chains = get_helix_chains(chains, helix)
-            # for bp in helix_chains[0]:
-            #     f.write( str(bp['global_res_ind']+1) + "," )
-            # for bp in helix_chains[1]:
-            #     f.write( str(bp['global_res_ind']+1) + "," )
+
             for bp1,bp2 in zip(helix_chains[0],helix_chains[1]):
                 f.write( str(bp1['global_res_ind']+1) +"-"+str(bp2['global_res_ind']+1)+ "," )
 

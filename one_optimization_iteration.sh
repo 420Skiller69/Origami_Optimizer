@@ -1,4 +1,4 @@
-#!/bin/bash
+# #!/bin/bash
 
 echo " iteration $1 -----------------------------------------------------------------------------------------"
 
@@ -37,10 +37,16 @@ echo "comparing simulation data to equilibrium coordinates" # ------------------
 
 python Offset_energy_calculator/calculate.py
 
-# mv MD_simulation/trajectorys/mdcrd.4md MD_simulation/long_sim_data/mdcrd$1.4md
-# cp MD_simulation/input.prmtop MD_simulation/long_sim_data/input$1.prmtop
-# cp output.pdb MD_simulation/long_sim_data/output$1.pdb
-# cp display_energys.tcl MD_simulation/long_sim_data/display_energys$1.tcl
+rm -rf MD_simulation/long_sim_data/*
+mv MD_simulation/trajectorys MD_simulation/long_sim_data/
+mv MD_simulation/info MD_simulation/long_sim_data/
+mv MD_simulation/out MD_simulation/long_sim_data/
+mv MD_simulation/restart_files MD_simulation/long_sim_data/
+mkdir MD_simulation/trajectorys
+mkdir MD_simulation/out
+mkdir MD_simulation/info
+mkdir MD_simulation/restart_files
+
 
 # echo "starting vmd visualization of result"
 
